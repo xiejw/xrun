@@ -1,3 +1,13 @@
+// xrun — a go-run-style launcher for single-file C++ programs.
+//
+// Usage:
+//   xrun <file.cc> [args...]
+//
+//   <file.cc>   C++ source to compile (cached under ~/.cache/xrun) and run.
+//   [args...]   Forwarded verbatim to the compiled program.
+//
+// The program's exit code is propagated as xrun's exit code.
+
 #include <unistd.h>
 
 #include <cerrno>
@@ -9,9 +19,6 @@
 
 #include "cache.h"
 #include "proc.h"
-
-// === --- xrun — go-run-style launcher for single C++ files ---------- ===
-//
 
 namespace {
 

@@ -77,3 +77,20 @@ project/
   Makefile
 ```
 
+## Entry Point Documentation
+
+Every entry point in `cmd/` (`cmd/main.cc` and each `cmd/main_<name>.cc`) must
+begin with a header comment describing how to use the resulting binary. At a
+minimum it states the usage line, the arguments, and what the program does.
+
+```c++
+// xrun — a go-run-style launcher for single-file C++ programs.
+//
+// Usage:
+//   xrun <file.cc> [args...]
+//
+//   <file.cc>   C++ source to compile (cached) and run.
+//   [args...]   Forwarded verbatim to the compiled program.
+//
+// The program's exit code is propagated as xrun's exit code.
+```
