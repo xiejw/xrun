@@ -1,0 +1,7 @@
+# Generated Assets
+.build
+
+# Vim
+*.swo
+*.swp
+
