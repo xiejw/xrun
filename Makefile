@@ -32,4 +32,8 @@ test: compile
 clean:
 	rm -rf $(BUILD)
 
+fmt:
+	~/Workspace/y/tools/scripts/clang_format_all.sh .
+
+
 -include $(DEPS)
