@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 
 #include "proc.h"
 
@@ -24,6 +23,13 @@ constexpr char        kCacheSubdir[] = "/.cache/xrun";
 constexpr char        kCacheParent[] = "/.cache";
 constexpr std::size_t kSha256HexLen  = 64;
 constexpr mode_t      kDirMode       = 0755;
+
+// Stores `msg` into `*err_msg` when the caller asked for it.
+void
+set_err( std::string *err_msg, const std::string &msg )
+{
+        if ( err_msg != nullptr ) *err_msg = msg;
+}
 
 // Returns the user's home directory, or an empty string if unset.
 std::string
@@ -49,18 +55,18 @@ make_dir( const std::string &path )
 //
 
 std::optional<CacheInput>
-CacheKeyFor( const std::string &src_path )
+CacheKeyFor( const std::string &src_path, std::string *err_msg )
 {
         char resolved[PATH_MAX];
         if ( realpath( src_path.c_str( ), resolved ) == nullptr ) {
-                std::cerr << "xrun: cannot resolve '" << src_path
-                          << "': " << std::strerror( errno ) << "\n";
+                set_err( err_msg, "cannot resolve '" + src_path +
+                                      "': " + std::strerror( errno ) );
                 return std::nullopt;
         }
         struct stat st;
         if ( stat( resolved, &st ) != 0 ) {
-                std::cerr << "xrun: cannot stat '" << resolved
-                          << "': " << std::strerror( errno ) << "\n";
+                set_err( err_msg, "cannot stat '" + std::string( resolved ) +
+                                      "': " + std::strerror( errno ) );
                 return std::nullopt;
         }
         CacheInput input;
@@ -70,14 +76,16 @@ CacheKeyFor( const std::string &src_path )
 }
 
 std::optional<std::string>
-ComputeChecksum( const CacheInput &input )
+ComputeChecksum( const CacheInput &input, std::string *err_msg )
 {
         std::string payload =
             input.abs_path + "\n" + std::to_string( input.mtime ) + "\n";
         std::optional<proc::CaptureResult> result =
-            proc::RunCapture( { "sha256sum" }, payload );
-        if ( !result.has_value( ) || result->exit_code != 0 ) {
-                std::cerr << "xrun: sha256sum failed\n";
+            proc::RunCapture( { "sha256sum" }, payload, err_msg );
+        if ( !result.has_value( ) ) return std::nullopt;
+        if ( result->exit_code != 0 ) {
+                set_err( err_msg, "sha256sum exited with code " +
+                                      std::to_string( result->exit_code ) );
                 return std::nullopt;
         }
         // sha256sum prints "<hex>  -\n"; keep the leading hex field.
@@ -86,7 +94,7 @@ ComputeChecksum( const CacheInput &input )
         std::string        hex =
             ( end == std::string::npos ) ? out : out.substr( 0, end );
         if ( hex.size( ) != kSha256HexLen ) {
-                std::cerr << "xrun: unexpected sha256sum output\n";
+                set_err( err_msg, "unexpected sha256sum output" );
                 return std::nullopt;
         }
         return hex;
@@ -113,21 +121,21 @@ IsCached( const std::string &cache_path )
 }
 
 bool
-EnsureCacheDir( )
+EnsureCacheDir( std::string *err_msg )
 {
         std::string home = home_dir( );
         if ( home.empty( ) ) {
-                std::cerr << "xrun: HOME is not set\n";
+                set_err( err_msg, "HOME is not set" );
                 return false;
         }
         if ( !make_dir( home + kCacheParent ) ) {
-                std::cerr << "xrun: cannot create " << home << kCacheParent
-                          << ": " << std::strerror( errno ) << "\n";
+                set_err( err_msg, "cannot create " + home + kCacheParent +
+                                      ": " + std::strerror( errno ) );
                 return false;
         }
         if ( !make_dir( CacheDir( ) ) ) {
-                std::cerr << "xrun: cannot create " << CacheDir( ) << ": "
-                          << std::strerror( errno ) << "\n";
+                set_err( err_msg, "cannot create " + CacheDir( ) + ": " +
+                                      std::strerror( errno ) );
                 return false;
         }
         return true;

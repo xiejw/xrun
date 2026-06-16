@@ -48,13 +48,32 @@ fixed size array, it is better to check the input length to report error.
 
 ## Error Handling
 
-All fallible functions use this pattern:
+Every function that can fail takes a trailing `std::string *err_msg`
+out-parameter and reports failures through it:
 
 ```c++
-bool Foo(..., std::string *err_msg);
+bool Foo( ..., std::string *err_msg );                    // false = error
+std::optional<Bar> MakeBar( ..., std::string *err_msg );  // nullopt = error
 ```
-where return `true` on success, `false` on error for most cases. The `err_msg`
-is used to store the error messages.
+
+On failure, write a human-readable description (include `strerror(errno)` where
+relevant) to `*err_msg` and return the error sentinel (`false` or
+`std::nullopt`). On success, leave `*err_msg` untouched.
+
+A fallible function must **never** do either of the following:
+
+- **Print the error itself** — no `std::cerr` / `fprintf(stderr, ...)`.
+  Surfacing the message is the caller's decision, not the callee's.
+- **Fail silently** — every error path must set `*err_msg`; never just return a
+  sentinel with no explanation.
+
+Only the top-level entry point (`cmd/main*.cc`) prints these messages, typically
+to `stderr`. Plain predicates that answer a yes/no question (e.g. an existence
+check returning `bool`) are not "fallible" and do not take `err_msg`.
+
+The sole exception is a child process after `fork`: once `exec` fails there is
+no channel back to the parent except the exit code, so the child may write to
+`stderr` before `_exit`.
 
 ## Project Layout
 
