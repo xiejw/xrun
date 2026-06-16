@@ -25,12 +25,12 @@ namespace {
 constexpr int kUsageError    = 2;
 constexpr int kInternalError = 1;
 
-// Prints `err` (when non-empty) as an xrun diagnostic and returns the internal
+// Prints `*err` (when non-empty) as an xrun diagnostic and returns the internal
 // error code, so the entry point is the single place that touches stderr.
 int
-fail( const std::string &err )
+fail( const std::string *err )
 {
-        if ( !err.empty( ) ) std::cerr << "xrun: " << err << "\n";
+        if ( !err->empty( ) ) std::cerr << "xrun: " << *err << "\n";
         return kInternalError;
 }
 
@@ -74,18 +74,18 @@ main( int argc, char **argv )
 
         std::optional<forge::cache::CacheInput> input =
             forge::cache::CacheKeyFor( src, &err );
-        if ( !input.has_value( ) ) return fail( err );
+        if ( !input.has_value( ) ) return fail( &err );
 
         std::optional<std::string> checksum =
             forge::cache::ComputeChecksum( *input, &err );
-        if ( !checksum.has_value( ) ) return fail( err );
+        if ( !checksum.has_value( ) ) return fail( &err );
 
         std::string cache_path = forge::cache::CachePathFor( *checksum );
 
         if ( !forge::cache::IsCached( cache_path ) ) {
-                if ( !forge::cache::EnsureCacheDir( &err ) ) return fail( err );
+                if ( !forge::cache::EnsureCacheDir( &err ) ) return fail( &err );
                 if ( !compile_source( input->abs_path, cache_path, &err ) )
-                        return fail( err );
+                        return fail( &err );
         }
 
         // Run the cached program: argv[0] = the binary, then the forwarded
@@ -96,5 +96,5 @@ main( int argc, char **argv )
         for ( int i = 2; i < argc; ++i ) run_argv.push_back( argv[i] );
 
         forge::proc::RunExec( cache_path, run_argv, &err );
-        return fail( err );  // only reached if exec failed
+        return fail( &err );  // only reached if exec failed
 }
