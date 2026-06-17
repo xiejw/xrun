@@ -8,9 +8,13 @@ endif
 
 BUILD := .build
 BIN := $(BUILD)/xrun
-SRCS := cmd/main.cc $(wildcard src/*.cc)
-OBJS := $(patsubst %.cc,$(BUILD)/%.o,$(SRCS))
-DEPS := $(OBJS:.o=.d)
+LIB_OBJS := $(patsubst %.cc,$(BUILD)/%.o,$(wildcard src/*.cc))
+OBJS := $(BUILD)/cmd/main.o $(LIB_OBJS)
+
+TEST_BIN := $(BUILD)/test_main
+TEST_OBJS := $(BUILD)/cmd/test_main.o $(LIB_OBJS)
+
+DEPS := $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
 
 .PHONY: compile run clean test
 
@@ -19,6 +23,9 @@ compile: $(BIN)
 $(BIN): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $@
 
+$(TEST_BIN): $(TEST_OBJS)
+	$(CXX) $(CXXFLAGS) $(TEST_OBJS) -o $@
+
 $(BUILD)/%.o: %.cc
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
@@ -26,8 +33,8 @@ $(BUILD)/%.o: %.cc
 run: compile
 	@$(BIN) $(ARGS)
 
-test: compile
-	@./test.sh
+test: compile $(TEST_BIN)
+	@$(TEST_BIN)
 
 clean:
 	rm -rf $(BUILD)
