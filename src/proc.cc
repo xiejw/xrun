@@ -20,13 +20,6 @@ constexpr int         kWriteEnd        = 1;
 constexpr std::size_t kReadChunk       = 4096;
 constexpr int         kExecFailureCode = 127;
 
-// Stores `msg` into `*err_msg` when the caller asked for it.
-void
-set_err( std::string *err_msg, const std::string &msg )
-{
-        if ( err_msg != nullptr ) *err_msg = msg;
-}
-
 // Builds a NULL-terminated argv array of C strings referencing `args`. The
 // returned pointers are valid only while `args` is alive and unmodified.
 std::vector<char *>
@@ -60,20 +53,22 @@ RunCapture( const std::vector<std::string> &argv, const std::string &stdin_data,
             std::string *err_msg )
 {
         if ( argv.empty( ) ) {
-                set_err( err_msg, "RunCapture: empty argv" );
+                if ( err_msg != nullptr ) *err_msg = "RunCapture: empty argv";
                 return std::nullopt;
         }
 
         int in_pipe[2];
         int out_pipe[2];
         if ( pipe( in_pipe ) != 0 ) {
-                set_err( err_msg, std::string( "pipe failed: " ) +
-                                      std::strerror( errno ) );
+                if ( err_msg != nullptr )
+                        *err_msg = std::string( "pipe failed: " ) +
+                                   std::strerror( errno );
                 return std::nullopt;
         }
         if ( pipe( out_pipe ) != 0 ) {
-                set_err( err_msg, std::string( "pipe failed: " ) +
-                                      std::strerror( errno ) );
+                if ( err_msg != nullptr )
+                        *err_msg = std::string( "pipe failed: " ) +
+                                   std::strerror( errno );
                 close( in_pipe[kReadEnd] );
                 close( in_pipe[kWriteEnd] );
                 return std::nullopt;
@@ -81,8 +76,9 @@ RunCapture( const std::vector<std::string> &argv, const std::string &stdin_data,
 
         pid_t pid = fork( );
         if ( pid < 0 ) {
-                set_err( err_msg, std::string( "fork failed: " ) +
-                                      std::strerror( errno ) );
+                if ( err_msg != nullptr )
+                        *err_msg = std::string( "fork failed: " ) +
+                                   std::strerror( errno );
                 close( in_pipe[kReadEnd] );
                 close( in_pipe[kWriteEnd] );
                 close( out_pipe[kReadEnd] );
@@ -150,14 +146,15 @@ int
 RunWait( const std::vector<std::string> &argv, std::string *err_msg )
 {
         if ( argv.empty( ) ) {
-                set_err( err_msg, "RunWait: empty argv" );
+                if ( err_msg != nullptr ) *err_msg = "RunWait: empty argv";
                 return -1;
         }
 
         pid_t pid = fork( );
         if ( pid < 0 ) {
-                set_err( err_msg, std::string( "fork failed: " ) +
-                                      std::strerror( errno ) );
+                if ( err_msg != nullptr )
+                        *err_msg = std::string( "fork failed: " ) +
+                                   std::strerror( errno );
                 return -1;
         }
         if ( pid == 0 ) {
@@ -178,8 +175,9 @@ RunExec( const std::string &path, const std::vector<std::string> &argv,
 {
         std::vector<char *> cargv = build_argv( argv );
         execv( path.c_str( ), cargv.data( ) );
-        set_err( err_msg,
-                 "exec " + path + " failed: " + std::strerror( errno ) );
+        if ( err_msg != nullptr )
+                *err_msg =
+                    "exec " + path + " failed: " + std::strerror( errno );
 }
 
 }  // namespace forge::proc

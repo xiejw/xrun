@@ -125,7 +125,7 @@ cache_path_for( const std::string &src )
         std::optional<std::string> sum =
             forge::cache::ComputeChecksum( *in, &err );
         if ( !sum.has_value( ) ) return std::nullopt;
-        return forge::cache::CachePathFor( *sum );
+        return forge::cache::CachePathFor( *sum, &err );
 }
 
 // === --- Driving xrun ----------------------------------------------- ===

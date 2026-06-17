@@ -24,20 +24,15 @@ constexpr char        kCacheParent[] = "/.cache";
 constexpr std::size_t kSha256HexLen  = 64;
 constexpr mode_t      kDirMode       = 0755;
 
-// Stores `msg` into `*err_msg` when the caller asked for it.
-void
-set_err( std::string *err_msg, const std::string &msg )
-{
-        if ( err_msg != nullptr ) *err_msg = msg;
-}
-
-// Returns the user's home directory, or an empty string if unset.
-std::string
-home_dir( )
+// Returns the user's home directory. Returns nullopt (setting `*err_msg`) when
+// HOME is missing or empty.
+std::optional<std::string>
+home_dir( std::string *err_msg )
 {
         const char *home = std::getenv( "HOME" );
         if ( home != nullptr && home[0] != '\0' ) return std::string( home );
-        return std::string( );
+        if ( err_msg != nullptr ) *err_msg = "HOME is not set";
+        return std::nullopt;
 }
 
 // Creates a single directory if absent. Returns false only on a real failure
@@ -57,16 +52,18 @@ make_dir( const std::string &path )
 std::optional<CacheInput>
 CacheKeyFor( const std::string &src_path, std::string *err_msg )
 {
-        char resolved[PATH_MAX];
+        char resolved[PATH_MAX];  // PATH_MAX from <climits> (limits.h)
         if ( realpath( src_path.c_str( ), resolved ) == nullptr ) {
-                set_err( err_msg, "cannot resolve '" + src_path +
-                                      "': " + std::strerror( errno ) );
+                if ( err_msg != nullptr )
+                        *err_msg = "cannot resolve '" + src_path +
+                                   "': " + std::strerror( errno );
                 return std::nullopt;
         }
         struct stat st;
         if ( stat( resolved, &st ) != 0 ) {
-                set_err( err_msg, "cannot stat '" + std::string( resolved ) +
-                                      "': " + std::strerror( errno ) );
+                if ( err_msg != nullptr )
+                        *err_msg = "cannot stat '" + std::string( resolved ) +
+                                   "': " + std::strerror( errno );
                 return std::nullopt;
         }
         CacheInput input;
@@ -84,8 +81,9 @@ ComputeChecksum( const CacheInput &input, std::string *err_msg )
             proc::RunCapture( { "sha256sum" }, payload, err_msg );
         if ( !result.has_value( ) ) return std::nullopt;
         if ( result->exit_code != 0 ) {
-                set_err( err_msg, "sha256sum exited with code " +
-                                      std::to_string( result->exit_code ) );
+                if ( err_msg != nullptr )
+                        *err_msg = "sha256sum exited with code " +
+                                   std::to_string( result->exit_code );
                 return std::nullopt;
         }
         // sha256sum prints "<hex>  -\n"; keep the leading hex field.
@@ -94,22 +92,27 @@ ComputeChecksum( const CacheInput &input, std::string *err_msg )
         std::string        hex =
             ( end == std::string::npos ) ? out : out.substr( 0, end );
         if ( hex.size( ) != kSha256HexLen ) {
-                set_err( err_msg, "unexpected sha256sum output" );
+                if ( err_msg != nullptr )
+                        *err_msg = "unexpected sha256sum output";
                 return std::nullopt;
         }
         return hex;
 }
 
-std::string
-CacheDir( )
+std::optional<std::string>
+CacheDir( std::string *err_msg )
 {
-        return home_dir( ) + kCacheSubdir;
+        std::optional<std::string> home = home_dir( err_msg );
+        if ( !home.has_value( ) ) return std::nullopt;
+        return *home + kCacheSubdir;
 }
 
-std::string
-CachePathFor( const std::string &checksum )
+std::optional<std::string>
+CachePathFor( const std::string &checksum, std::string *err_msg )
 {
-        return CacheDir( ) + "/" + checksum;
+        std::optional<std::string> dir = CacheDir( err_msg );
+        if ( !dir.has_value( ) ) return std::nullopt;
+        return *dir + "/" + checksum;
 }
 
 bool
@@ -123,19 +126,20 @@ IsCached( const std::string &cache_path )
 bool
 EnsureCacheDir( std::string *err_msg )
 {
-        std::string home = home_dir( );
-        if ( home.empty( ) ) {
-                set_err( err_msg, "HOME is not set" );
+        std::optional<std::string> home = home_dir( err_msg );
+        if ( !home.has_value( ) ) return false;
+        if ( !make_dir( *home + kCacheParent ) ) {
+                if ( err_msg != nullptr )
+                        *err_msg = "cannot create " + *home + kCacheParent +
+                                   ": " + std::strerror( errno );
                 return false;
         }
-        if ( !make_dir( home + kCacheParent ) ) {
-                set_err( err_msg, "cannot create " + home + kCacheParent +
-                                      ": " + std::strerror( errno ) );
-                return false;
-        }
-        if ( !make_dir( CacheDir( ) ) ) {
-                set_err( err_msg, "cannot create " + CacheDir( ) + ": " +
-                                      std::strerror( errno ) );
+        std::optional<std::string> dir = CacheDir( err_msg );
+        if ( !dir.has_value( ) ) return false;
+        if ( !make_dir( *dir ) ) {
+                if ( err_msg != nullptr )
+                        *err_msg = "cannot create " + *dir + ": " +
+                                   std::strerror( errno );
                 return false;
         }
         return true;

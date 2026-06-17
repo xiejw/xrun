@@ -80,11 +80,14 @@ main( int argc, char **argv )
             forge::cache::ComputeChecksum( *input, &err );
         if ( !checksum.has_value( ) ) return fail( &err );
 
-        std::string cache_path = forge::cache::CachePathFor( *checksum );
+        std::optional<std::string> cache_path =
+            forge::cache::CachePathFor( *checksum, &err );
+        if ( !cache_path.has_value( ) ) return fail( &err );
 
-        if ( !forge::cache::IsCached( cache_path ) ) {
-                if ( !forge::cache::EnsureCacheDir( &err ) ) return fail( &err );
-                if ( !compile_source( input->abs_path, cache_path, &err ) )
+        if ( !forge::cache::IsCached( *cache_path ) ) {
+                if ( !forge::cache::EnsureCacheDir( &err ) )
+                        return fail( &err );
+                if ( !compile_source( input->abs_path, *cache_path, &err ) )
                         return fail( &err );
         }
 
@@ -92,9 +95,9 @@ main( int argc, char **argv )
         // args.
         std::vector<std::string> run_argv;
         run_argv.reserve( static_cast<std::size_t>( argc - 1 ) );
-        run_argv.push_back( cache_path );
+        run_argv.push_back( *cache_path );
         for ( int i = 2; i < argc; ++i ) run_argv.push_back( argv[i] );
 
-        forge::proc::RunExec( cache_path, run_argv, &err );
+        forge::proc::RunExec( *cache_path, run_argv, &err );
         return fail( &err );  // only reached if exec failed
 }

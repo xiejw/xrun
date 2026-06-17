@@ -26,11 +26,14 @@ std::optional<CacheInput> CacheKeyFor( const std::string &src_path,
 std::optional<std::string> ComputeChecksum( const CacheInput &input,
                                             std::string      *err_msg );
 
-// Returns the cache directory: ~/.cache/xrun.
-std::string CacheDir( );
+// Returns the cache directory ~/.cache/xrun. Returns nullopt (setting
+// `*err_msg`) when HOME is unset.
+std::optional<std::string> CacheDir( std::string *err_msg );
 
-// Returns the full cache path for a checksum: ~/.cache/xrun/<checksum>.
-std::string CachePathFor( const std::string &checksum );
+// Returns the full cache path ~/.cache/xrun/<checksum>. Returns nullopt
+// (setting `*err_msg`) when HOME is unset.
+std::optional<std::string> CachePathFor( const std::string &checksum,
+                                         std::string       *err_msg );
 
 // Returns true if `cache_path` exists and is a regular file.
 bool IsCached( const std::string &cache_path );
